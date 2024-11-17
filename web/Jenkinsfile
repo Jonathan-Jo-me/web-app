@@ -12,40 +12,38 @@ pipeline {
     }
 
     stages {
-        stage('SonarQube SAST Analysis') {
+        stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar-scanner') {
-                    script {
+                script {
+                    def projectName = 'web-devo'
+                    def projectKey = 'web-devo'
+                    def coverageThreshold = '80'
+
+                    // Ensure that SonarQube environment is set up properly
+                    withSonarQubeEnv('QualityGate') { // Use the SonarQube server name configured in Jenkins
+                        def scannerHome = tool name: 'sonar-scanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+                        
                         sh """
-                            $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=testmain \
-                            -Dsonar.coverage.exclusions=**/main/** \
-                            -Dsonar.qualitygate.name=SonarCustom
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=${projectKey} \
+                            -Dsonar.projectName=${projectName} \
+                            -Dsonar.sources=web \
+                            -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                            -Dsonar.language=js \
+                            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                         """
                     }
                 }
             }
         }
-        
+
         stage('SonarQube Quality Gate Check') {
             steps {
                 script {
-                    timeout(time: 10, unit: 'MINUTES') {
-                        def qualityGate = waitForQualityGate()
-                        if (params.QualityGate == 'Fail' && qualityGate.status != 'OK') {
-                            error "Pipeline failed due to not meeting the quality gate conditions. Status: ${qualityGate.status}"
-                        } else {
-                            echo "Quality Gate status: ${qualityGate.status} (Expected: OK)"
-                        }
-                    }
+                    // This will automatically wait for the quality gate status and abort if the gate fails
+                    waitForQualityGate abortPipeline: true
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            echo 'Cleaning up or performing post actions for main branch.'
-            // Any additional post actions (e.g., notifications) can be added here.
         }
     }
 }
