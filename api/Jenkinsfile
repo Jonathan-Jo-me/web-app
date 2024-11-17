@@ -1,0 +1,120 @@
+pipeline {
+    agent any
+    parameters {
+        choice(name: 'QualityGate', choices: ['Pass', 'Fail'], description: 'Choose the QualityGate status (Pass or Fail). The pipeline will fail if "Fail" is selected.')
+    }
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        AWS_REGION = 'ap-south-1'
+        ECR_REPO_API = '836759839628.dkr.ecr.ap-south-1.amazonaws.com/prod/api'
+        IMAGE_TAG = "${gitCommit}-${BUILD_NUMBER}"
+        REPOSITORY_URI = '836759839628.dkr.ecr.ap-south-1.amazonaws.com/prod'
+        AWS_ECR_REPO_NAME = 'api'  // Set repo name to 'api' for this project
+        SONAR_PROJECT_KEY = 'api-project1'
+        SONAR_SOURCES = 'api'
+    }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                // Checkout the source code from the repository
+                checkout scm
+            }
+        }
+
+        stage('Static Code Analysis') {
+            parallel {
+                stage('SonarQube Analysis') {
+                    steps {
+                        script {
+                            withSonarQubeEnv('sonar-scanner') {
+                                sh '''
+                                echo "Running SonarQube analysis for API"
+                                $SCANNER_HOME/bin/sonar-scanner \
+                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                    -Dsonar.sources=${SONAR_SOURCES} \
+                                    -Dsonar.coverage.exclusions=**/test/** \
+                                    -Dsonar.coverage.minimumCoverage=80 \
+                                    -Dsonar.issue.severity=HIGH \
+                                    -Dsonar.security.hotspots=true
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('OWASP Dependency-Check Scan') {
+                    steps {
+                        dependencyCheck additionalArguments: '--scan ./ --format ALL', 
+                                        odcInstallation: 'dp', 
+                                        stopBuild: true
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
+                }
+            }
+        }
+
+        stage('Check SonarQube Quality Gate') {
+            when {
+                expression {
+                    return params.QualityGate == 'Fail'
+                }
+            }
+            steps {
+                script {
+                    // Wait for the SonarQube analysis to complete and check the quality gate status
+                    def qualityGate = waitForQualityGate()  // Wait for the quality gate result
+                    if (qualityGate.status != 'OK') {
+                        error "SonarQube Quality Gate failed: ${qualityGate.status}"
+                    }
+                }
+            }
+        }
+
+        stage('Run API Tests') {
+            steps {
+                script {
+                    dir('api') {
+                        // Run API tests (customize for your project)
+                        sh 'python3 test.py'
+                    }
+                }
+            }
+        }
+
+        stage('Build API Docker Image') {
+            steps {
+                script {
+                    dir('api') {
+                        // Build Docker image for the API
+                        sh 'docker build -t $ECR_REPO_API:$IMAGE_TAG .'
+                    }
+                }
+            }
+        }
+
+        stage('Anchore Grype Vulnerability Scan') {
+            steps {
+                script {
+                    // Run Grype scan on the API Docker image (without condition)
+                    sh 'grype ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${IMAGE_TAG} -o json > grype-scan-api.json'
+
+                    // Display the Grype scan results
+                    sh 'cat grype-scan-api.json'
+
+                    // Optionally, you can archive the report to keep it for later inspection
+                    archiveArtifacts allowEmptyArchive: true, artifacts: 'grype-scan-api.json'
+                }
+            }
+        }
+
+        stage('Push API Docker Image to ECR') {
+            steps {
+                script {
+                    // Log in to AWS ECR and push the API Docker image
+                    sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 836759839628.dkr.ecr.$AWS_REGION.amazonaws.com'
+                    sh 'docker push $ECR_REPO_API:$IMAGE_TAG'
+                }
+            }
+        }
+    }
+}
