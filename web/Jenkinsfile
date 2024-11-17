@@ -1,36 +1,46 @@
 pipeline {
     agent any
-    parameters {
-        choice(
-            name: 'QualityGate',
-            choices: ['Pass', 'Fail'],
-            description: 'Select whether to fail the pipeline on quality gate failure'
-        )
-    }
+    
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
     }
 
     stages {
-        stage('SonarQube SAST Analysis') {
+        stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar-scanner') {
-                    script {
+                script {
+                    def projectName = 'web-devo'
+                    def projectKey = 'web-devo'
+                    def coverageThreshold = '80'
+
+                    // Ensure that SonarQube environment is set up properly
+                    withSonarQubeEnv('sonar-scanner') {
+                        // You can use the 'tool' step to get the sonar-scanner home
+                        def scannerHome = tool name: 'sonar-scanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+                        
                         sh """
-                            $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=testdevelop \
-                            -Dsonar.coverage.exclusions=**/develop/** \
-                            -Dsonar.qualitygate.name=SonarCustom
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=${projectKey} \
+                            -Dsonar.projectName=${projectName} \
+                            -Dsonar.sources=web \
+                            -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                            -Dsonar.language=js \
+                            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                         """
                     }
                 }
             }
         }
-        
+
         stage('SonarQube Quality Gate Check') {
             steps {
                 script {
+                    // Timeout block for waiting for quality gate result
                     timeout(time: 10, unit: 'MINUTES') {
+                        // Wait for the quality gate status
                         def qualityGate = waitForQualityGate()
+                        
+                        // Check the result based on the parameter `QualityGate`
                         if (params.QualityGate == 'Fail' && qualityGate.status != 'OK') {
                             error "Pipeline failed due to not meeting the quality gate conditions. Status: ${qualityGate.status}"
                         } else {
@@ -39,13 +49,6 @@ pipeline {
                     }
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            echo 'Cleaning up or performing post actions for develop branch.'
-            // Any additional post actions (e.g., notifications) can be added here.
         }
     }
 }
