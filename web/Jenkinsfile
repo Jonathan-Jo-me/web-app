@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+    parameters {
+        choice(
+            name: 'QualityGate',
+            choices: ['Pass', 'Fail'],
+            description: 'Select whether to fail the pipeline on quality gate failure'
+        )
+    }
+    environment {
+        SCANNER_HOME = tool name: 'sonar-scanner', type: 'Tool'
+    }
+
+    stages {
+        stage('SonarQube SAST Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-scanner') {
+                    script {
+                        sh """
+                            $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=testmain \
+                            -Dsonar.coverage.exclusions=**/main/** \
+                            -Dsonar.qualitygate.name=SonarCustom
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('SonarQube Quality Gate Check') {
+            steps {
+                script {
+                    timeout(time: 10, unit: 'MINUTES') {
+                        def qualityGate = waitForQualityGate()
+                        if (params.QualityGate == 'Fail' && qualityGate.status != 'OK') {
+                            error "Pipeline failed due to not meeting the quality gate conditions. Status: ${qualityGate.status}"
+                        } else {
+                            echo "Quality Gate status: ${qualityGate.status} (Expected: OK)"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            // Any post actions you want to do for this branch.
+        }
+    }
+}
