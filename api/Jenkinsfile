@@ -11,7 +11,7 @@ pipeline {
         REPOSITORY_URI = '836759839628.dkr.ecr.ap-south-1.amazonaws.com/prod'
         AWS_ECR_REPO_NAME = 'api'  // Set repo name to 'api' for this project
         SONAR_PROJECT_KEY = 'api-project123'
-        SONAR_SOURCES = 'api'
+       // SONAR_SOURCES = 'api'
     }
     stages {
         stage('Checkout Code') {
@@ -31,7 +31,6 @@ pipeline {
                                 echo "Running SonarQube analysis for API"
                                 $SCANNER_HOME/bin/sonar-scanner \
                                     -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                    -Dsonar.sources=${SONAR_SOURCES} \
                                     -Dsonar.qualitygate.name=SonarCustom \
                                 '''
                             }
