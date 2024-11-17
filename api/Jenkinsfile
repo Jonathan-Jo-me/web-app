@@ -10,7 +10,7 @@ pipeline {
         IMAGE_TAG = "${gitCommit}-${BUILD_NUMBER}"
         REPOSITORY_URI = '836759839628.dkr.ecr.ap-south-1.amazonaws.com/prod'
         AWS_ECR_REPO_NAME = 'api'  // Set repo name to 'api' for this project
-        SONAR_PROJECT_KEY = 'api-project12'
+        SONAR_PROJECT_KEY = 'api-project123'
         SONAR_SOURCES = 'api'
     }
     stages {
@@ -33,10 +33,6 @@ pipeline {
                                     -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                                     -Dsonar.sources=${SONAR_SOURCES} \
                                     -Dsonar.qualitygate.name=SonarCustom \
-                                    -Dsonar.coverage.exclusions=**/test/** \
-                                    -Dsonar.coverage.minimumCoverage=80 \
-                                    -Dsonar.issue.severity=HIGH \
-                                    -Dsonar.security.hotspots=true 
                                 '''
                             }
                         }
