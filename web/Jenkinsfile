@@ -17,8 +17,8 @@ pipeline {
                 withSonarQubeEnv('sonar-scanner') {
                     script {
                         sh """
-                            $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=testmain \
-                            -Dsonar.coverage.exclusions=**/main/** \
+                            $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=testdevelop \
+                            -Dsonar.coverage.exclusions=**/develop/** \
                             -Dsonar.qualitygate.name=SonarCustom
                         """
                     }
@@ -43,7 +43,7 @@ pipeline {
     }
     post {
         always {
-            // Any post actions you want to do for this branch.
+            // Any post actions you want to do for the develop branch.
         }
     }
 }
