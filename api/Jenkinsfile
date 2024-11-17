@@ -53,7 +53,7 @@ pipeline {
         stage('Check SonarQube Quality Gate') {
             when {
                 expression {
-                    return params.QualityGate == 'Fail'
+                    return params.QualityGate == 'Pass'
                 }
             }
             steps {
