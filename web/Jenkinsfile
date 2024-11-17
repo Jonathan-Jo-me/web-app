@@ -41,9 +41,11 @@ pipeline {
             }
         }
     }
+
     post {
         always {
-            // Any post actions you want to do for this branch.
+            echo 'Cleaning up or performing post actions for main branch.'
+            // Any additional post actions (e.g., notifications) can be added here.
         }
     }
 }
